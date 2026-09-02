@@ -13,15 +13,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
+          - os: debian:bookworm
             target: x86_64-unknown-linux-gnu
             archive: tar.gz
-          - os: macos-latest
-            target: aarch64-apple-darwin
-            archive: tar.gz
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
-            archive: zip
+    container: ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -44,15 +39,6 @@ jobs:
           name="browser4agent-${{ matrix.target }}"
           tar -C target/${{ matrix.target }}/release -czf "${name}.tar.gz" browser4agent
           shasum -a 256 "${name}.tar.gz" | awk '{print $1}' > "${name}.tar.gz.sha256"
-
-      - name: Package archive (zip)
-        if: matrix.archive == 'zip'
-        shell: pwsh
-        run: |
-          $name = "browser4agent-${{ matrix.target }}"
-          Compress-Archive -Path "target/${{ matrix.target }}/release/browser4agent.exe" -DestinationPath "$name.zip"
-          $hash = (Get-FileHash "$name.zip" -Algorithm SHA256).Hash.ToLower()
-          Set-Content -Path "$name.zip.sha256" -Value $hash -NoNewline
 
       - uses: actions/upload-artifact@v4
         with:
@@ -86,13 +72,7 @@ jobs:
 
       - name: Rename zips
         run: |
-          mv extension/dist/chrome/*.zip extension/dist/chrome/extension-chrome.zip
           mv extension/dist/firefox/*.zip extension/dist/firefox/extension-firefox.zip
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: extension-chrome-zip
-          path: extension/dist/chrome/*.zip
 
       - uses: actions/upload-artifact@v4
         with:
@@ -142,37 +122,6 @@ jobs:
     secrets: inherit
     with:
       tag: ${{ github.ref_name }}
-
-  publish-chrome:
-    needs: build-extension
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: extension-chrome-zip
-
-      - uses: wdzeng/chrome-extension@v1
-        with:
-          extension-id: ${{ secrets.CHROME_EXTENSION_ID }}
-          zip-path: '*.zip'
-          client-id: ${{ secrets.CHROME_CLIENT_ID }}
-          client-secret: ${{ secrets.CHROME_CLIENT_SECRET }}
-          refresh-token: ${{ secrets.CHROME_REFRESH_TOKEN }}
-
-  publish-edge:
-    needs: build-extension
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: extension-chrome-zip
-
-      - uses: wdzeng/edge-addon@v2
-        with:
-          product-id: ${{ secrets.EDGE_PRODUCT_ID }}
-          zip-path: '*.zip'
-          api-key: ${{ secrets.EDGE_API_KEY }}
-          client-id: ${{ secrets.EDGE_CLIENT_ID }}
 
   publish-firefox:
     needs: build-extension
