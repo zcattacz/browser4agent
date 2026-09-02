@@ -46,61 +46,10 @@ jobs:
           path: |
             browser4agent-${{ matrix.target }}.tar.gz
             browser4agent-${{ matrix.target }}.tar.gz.sha256
-            browser4agent-${{ matrix.target }}.zip
-            browser4agent-${{ matrix.target }}.zip.sha256
           if-no-files-found: ignore
 
-  build-extension:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: pnpm/action-setup@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-
-      - run: pnpm install --frozen-lockfile
-
-      - name: Strip manifest key (Web Store rejects packages containing it)
-        run: jq 'del(.key)' extension/manifest.json > extension/manifest.tmp && mv extension/manifest.tmp extension/manifest.json
-
-      - name: Build extension
-        run: cd extension && npx extension build --browser chrome,firefox --zip
-
-      - name: Rename zips
-        run: |
-          mv extension/dist/firefox/*.zip extension/dist/firefox/extension-firefox.zip
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: extension-firefox-zip
-          path: extension/dist/firefox/*.zip
-
-  deploy-worker:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: pnpm/action-setup@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-
-      - run: pnpm install --frozen-lockfile
-
-      - uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          workingDirectory: cf
-          packageManager: pnpm
-
   release:
-    needs: [build-rust, build-extension]
+    needs: [build-rust]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -122,18 +71,3 @@ jobs:
     secrets: inherit
     with:
       tag: ${{ github.ref_name }}
-
-  publish-firefox:
-    needs: build-extension
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: extension-firefox-zip
-
-      - uses: wdzeng/firefox-addon@v1
-        with:
-          addon-guid: ${{ secrets.FIREFOX_ADDON_GUID }}
-          xpi-path: '*.zip'
-          jwt-issuer: ${{ secrets.FIREFOX_JWT_ISSUER }}
-          jwt-secret: ${{ secrets.FIREFOX_JWT_SECRET }}
